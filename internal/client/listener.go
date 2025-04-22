@@ -2,10 +2,10 @@ package client
 
 import (
 	"context"
+	"errors"
 	"sync/atomic"
 
 	"github.com/IBM/sarama"
-	"github.com/pkg/errors"
 	"go.uber.org/zap"
 	"golang.org/x/sync/errgroup"
 )
