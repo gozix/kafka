@@ -20,20 +20,26 @@ import (
 )
 
 const (
-	// TagListener is tag to mark kafka listener's.
+	// TagListener is a tag to mark kafka listener's.
 	TagListener = "kafka.listener"
 
-	// TagBatchListener is tag to mark kafka batch listener's.
+	// TagBatchListener is a tag to mark kafka batch listener's.
 	TagBatchListener = "kafka.batch_listener"
 
-	// TagListenerFactory is tag to mark kafka listener factories.
+	// TagListenerFactory is a tag to mark kafka listener factories.
 	TagListenerFactory = "kafka.listener_factory"
 
-	// TagBatchListenerFactory is tag to mark kafka listener factories.
+	// TagBatchListenerFactory is a tag to mark kafka listener factories.
 	TagBatchListenerFactory = "kafka.listener_batch_factory"
+
+	listenerPrefix = "kafka_listener_"
 )
 
-// NewKafkaListener is command constructor.
+type (
+	createHandler func(subscription kafkaapi.Subscription) sarama.ConsumerGroupHandler
+)
+
+// NewKafkaListener is a command constructor.
 func NewKafkaListener(cnt di.Container) *cobra.Command {
 	var (
 		runE = func(cmd *cobra.Command, args []string) (err error) {
@@ -86,8 +92,7 @@ func NewKafkaListener(cnt di.Container) *cobra.Command {
 
 				var createWrappedListener = func(
 					listener kafkaapi.ListenerSettings,
-					createHandler func(subscription kafkaapi.Subscription) sarama.ConsumerGroupHandler,
-					name string) error {
+					createHandler createHandler) error {
 					var subs = listener.Subscription()
 					err = subs.Normalize()
 					if err != nil {
@@ -112,14 +117,7 @@ func NewKafkaListener(cnt di.Container) *cobra.Command {
 				// listener
 				for index, listener := range singleListeners {
 					var name = modListener.Name(index)
-					err = createWrappedListener(listener,
-						func(subs kafkaapi.Subscription) sarama.ConsumerGroupHandler {
-							return client.NewConsumerWrapper(
-								listener.Handle,
-								monitor.WithConnection(subs.Connection),
-								logger.Named("kafka_listener_"+name))
-						},
-						name)
+					err = createWrappedListener(listener, consumerGroupFactory(listener.Handle, monitor, logger, name))
 					if err != nil {
 						return err
 					}
@@ -127,14 +125,7 @@ func NewKafkaListener(cnt di.Container) *cobra.Command {
 				// batch listener
 				for index, listener := range batchListeners {
 					var name = modBatchListener.Name(index)
-					err = createWrappedListener(listener,
-						func(subs kafkaapi.Subscription) sarama.ConsumerGroupHandler {
-							return client.NewBatchConsumerWrapper(
-								listener.Handle, subs.Size,
-								monitor.WithConnection(subs.Connection),
-								logger.Named("kafka_listener_"+name))
-						},
-						name)
+					err = createWrappedListener(listener, batchConsumerGroupFactory(listener.Handle, monitor, logger, name))
 					if err != nil {
 						return err
 					}
@@ -147,14 +138,7 @@ func NewKafkaListener(cnt di.Container) *cobra.Command {
 						return errCreate
 					}
 					for _, listener := range generatedListeners {
-						err = createWrappedListener(listener,
-							func(subs kafkaapi.Subscription) sarama.ConsumerGroupHandler {
-								return client.NewConsumerWrapper(
-									listener.Handle,
-									monitor.WithConnection(subs.Connection),
-									logger.Named("kafka_listener_"+name))
-							},
-							name)
+						err = createWrappedListener(listener, consumerGroupFactory(listener.Handle, monitor, logger, name))
 						if err != nil {
 							return err
 						}
@@ -168,14 +152,7 @@ func NewKafkaListener(cnt di.Container) *cobra.Command {
 						return errCreate
 					}
 					for _, listener := range generatedListeners {
-						err = createWrappedListener(listener,
-							func(subs kafkaapi.Subscription) sarama.ConsumerGroupHandler {
-								return client.NewBatchConsumerWrapper(
-									listener.Handle, subs.Size,
-									monitor.WithConnection(subs.Connection),
-									logger.Named("kafka_listener_"+name))
-							},
-							name)
+						err = createWrappedListener(listener, batchConsumerGroupFactory(listener.Handle, monitor, logger, name))
 						if err != nil {
 							return err
 						}
@@ -203,4 +180,27 @@ You can use glob syntax in listener names, for more information see https://gith
 	)
 
 	return cmd
+}
+
+func consumerGroupFactory(handler client.Consume, monitor monitor.Monitor, logger *zap.Logger, name string) createHandler {
+	return func(subs kafkaapi.Subscription) sarama.ConsumerGroupHandler {
+		return client.NewConsumerWrapper(
+			handler,
+			monitor.WithConnection(subs.Connection),
+			logger.Named(listenerPrefix+name),
+		)
+	}
+}
+
+func batchConsumerGroupFactory(
+	handler client.ConsumeBatch,
+	monitor monitor.Monitor,
+	logger *zap.Logger, name string) createHandler {
+	return func(subs kafkaapi.Subscription) sarama.ConsumerGroupHandler {
+		return client.NewBatchConsumerWrapper(
+			handler, subs.Size,
+			monitor.WithConnection(subs.Connection),
+			logger.Named(listenerPrefix+name),
+		)
+	}
 }

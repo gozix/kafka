@@ -43,7 +43,7 @@ func (b *Bundle) Build(builder di.Builder) error {
 
 		// publisher
 		// example for register default publisher
-		// di.Provide(usage.NewPublisherWithName(client.DEFAULT, nil), di.Tags{{Name: client.DEFAULT}}),
+		// di.Provide(kafkaapi.NewPublisherWithName(client.DEFAULT, nil), di.As(new(DefaultPublisher))),
 
 		// monitor
 		di.Provide(monitor.NewPrometheusMonitor),
