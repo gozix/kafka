@@ -61,3 +61,13 @@ func AsKafkaBatchListenerFactory(name string) di.ProvideOption {
 		}},
 	)
 }
+
+// AsKafkaMiddleware is syntax sugar for the di container.
+func AsKafkaMiddleware() di.ProvideOption {
+	return di.ProvideOptions(
+		di.As(new(kafkaapi.Middleware)),
+		di.Tags{{
+			Name: command.TagMiddleware,
+		}},
+	)
+}

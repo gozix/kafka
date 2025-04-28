@@ -5,7 +5,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"gitlab.mobbtech.com/gozix/kafka/kafkaapi"
 
 	"github.com/IBM/sarama"
 	"github.com/gozix/di"
@@ -17,6 +16,7 @@ import (
 	"gitlab.mobbtech.com/gozix/kafka/internal/client"
 	"gitlab.mobbtech.com/gozix/kafka/internal/modifier"
 	"gitlab.mobbtech.com/gozix/kafka/internal/monitor"
+	"gitlab.mobbtech.com/gozix/kafka/kafkaapi"
 )
 
 const (
@@ -29,8 +29,11 @@ const (
 	// TagListenerFactory is a tag to mark kafka listener factories.
 	TagListenerFactory = "kafka.listener_factory"
 
-	// TagBatchListenerFactory is a tag to mark kafka listener factories.
+	// TagBatchListenerFactory is a tag to mark kafka batch listener factories.
 	TagBatchListenerFactory = "kafka.listener_batch_factory"
+
+	// TagMiddleware is a tag to mark kafka middleware.
+	TagMiddleware = "kafka.middleware"
 
 	listenerPrefix = "kafka_listener_"
 )
@@ -71,6 +74,7 @@ func NewKafkaListener(cnt di.Container) *cobra.Command {
 				batchListeners []kafkaapi.BatchListener,
 				singleListenersFactory []kafkaapi.ListenerFactory,
 				batchListenersFactory []kafkaapi.BatchListenerFactory,
+				middlewares kafkaapi.Middlewares,
 				monitor monitor.Monitor,
 			) error {
 				// validate
@@ -117,7 +121,8 @@ func NewKafkaListener(cnt di.Container) *cobra.Command {
 				// listener
 				for index, listener := range singleListeners {
 					var name = modListener.Name(index)
-					err = createWrappedListener(listener, consumerGroupFactory(listener.Handle, monitor, logger, name))
+					err = createWrappedListener(listener, consumerGroupFactory(
+						middlewares.WrapSingle(listener.Handle), monitor, logger, name))
 					if err != nil {
 						return err
 					}
@@ -125,7 +130,8 @@ func NewKafkaListener(cnt di.Container) *cobra.Command {
 				// batch listener
 				for index, listener := range batchListeners {
 					var name = modBatchListener.Name(index)
-					err = createWrappedListener(listener, batchConsumerGroupFactory(listener.Handle, monitor, logger, name))
+					err = createWrappedListener(listener, batchConsumerGroupFactory(
+						middlewares.WrapBatch(listener.Handle), monitor, logger, name))
 					if err != nil {
 						return err
 					}
@@ -138,7 +144,8 @@ func NewKafkaListener(cnt di.Container) *cobra.Command {
 						return errCreate
 					}
 					for _, listener := range generatedListeners {
-						err = createWrappedListener(listener, consumerGroupFactory(listener.Handle, monitor, logger, name))
+						err = createWrappedListener(listener, consumerGroupFactory(
+							middlewares.WrapSingle(listener.Handle), monitor, logger, name))
 						if err != nil {
 							return err
 						}
@@ -152,7 +159,8 @@ func NewKafkaListener(cnt di.Container) *cobra.Command {
 						return errCreate
 					}
 					for _, listener := range generatedListeners {
-						err = createWrappedListener(listener, batchConsumerGroupFactory(listener.Handle, monitor, logger, name))
+						err = createWrappedListener(listener, batchConsumerGroupFactory(
+							middlewares.WrapBatch(listener.Handle), monitor, logger, name))
 						if err != nil {
 							return err
 						}
@@ -167,6 +175,7 @@ func NewKafkaListener(cnt di.Container) *cobra.Command {
 				di.Constraint(4, di.Optional(true), modBatchListener.Modifier()),
 				di.Constraint(5, di.Optional(true), modListenerFactory.Modifier()),
 				di.Constraint(6, di.Optional(true), modBatchListenerFactory.Modifier()),
+				di.Constraint(7, di.Optional(true)),
 			)
 		}
 		cmd = &cobra.Command{

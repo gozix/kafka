@@ -6,6 +6,7 @@ import (
 	gzGlue "github.com/gozix/glue/v3"
 	gzPrometheus "github.com/gozix/prometheus/v2"
 	gzZap "github.com/gozix/zap/v3"
+
 	"gitlab.mobbtech.com/gozix/kafka/internal/command"
 	"gitlab.mobbtech.com/gozix/kafka/internal/monitor"
 )
