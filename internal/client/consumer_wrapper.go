@@ -36,7 +36,6 @@ func (s *ConsumerWrapper) ConsumeClaim(session sarama.ConsumerGroupSession, clai
 			}
 			var start = time.Now()
 			if err := s.consume(m); err != nil {
-				s.logger.ErrorConsume("Kafka consumer returns error", m.Topic, m.Partition, err)
 				if !errors.Is(err, ErrMessageRejected) {
 					time.Sleep(100 * time.Millisecond)
 					s.monitor.TopicMessagesConsumedTotal(m.Topic, 1, monitor.StatusFailed)
@@ -108,7 +107,6 @@ func (s *BatchConsumerWrapper) ConsumeClaim(session sarama.ConsumerGroupSession,
 			message = batch[len(batch)-1]
 		)
 		if err := s.consume(batch); err != nil {
-			s.logger.ErrorBatchConsume("Kafka consumer returns error", message.Topic, message.Partition, len(batch), err)
 			if !errors.Is(err, ErrMessageRejected) {
 				time.Sleep(100 * time.Millisecond)
 				s.monitor.TopicMessagesConsumedTotal(message.Topic, len(batch), monitor.StatusFailed)

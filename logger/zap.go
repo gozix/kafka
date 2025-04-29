@@ -23,18 +23,9 @@ func (z ZapLoggRer) ErrorListen(msg string, topic, group string, err error) {
 	z.Error(msg, zap.String("topic", topic), zap.String("group", group), zap.Error(err))
 }
 
-func (z ZapLoggRer) ErrorConsume(msg string, topic string, partition int32, Err error) {
-	z.Error(msg, zap.String("topic", topic), zap.Int32("partition", partition), zap.Error(Err))
-}
-
 func (z ZapLoggRer) ErrorBatchListen(msg string, topic, group string, partition int32, size int, Err error) {
 	z.Error(msg, zap.String("topic", topic), zap.String("group", group),
 		zap.Int32("partition", partition), zap.Int("size", size), zap.Error(Err))
-}
-
-func (z ZapLoggRer) ErrorBatchConsume(msg string, topic string, partition int32, size int, Err error) {
-	z.Error(msg, zap.String("topic", topic), zap.Int32("partition", partition),
-		zap.Int("size", size), zap.Error(Err))
 }
 
 func (z ZapLoggRer) WarnListen(msg string, topic, group string, Err error) {
