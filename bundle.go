@@ -6,14 +6,25 @@ import (
 	gzGlue "github.com/gozix/glue/v3"
 	gzPrometheus "github.com/gozix/prometheus/v2"
 	gzZap "github.com/gozix/zap/v3"
-
 	"gitlab.mobbtech.com/gozix/kafka/internal/command"
-	"gitlab.mobbtech.com/gozix/kafka/internal/monitor"
+	"gitlab.mobbtech.com/gozix/kafka/logger"
+	"gitlab.mobbtech.com/gozix/kafka/monitor"
 )
 
 // Bundle implements the gzGlue.Bundle interface.
-type Bundle struct {
-}
+type (
+	// Option interface.
+	Option interface {
+		apply(b *Bundle)
+	}
+
+	// optionFunc wraps a func, so it satisfies the Option interface.
+	optionFunc func(b *Bundle)
+	Bundle     struct {
+		logger  di.Function
+		monitor di.Function
+	}
+)
 
 // BundleName is default definition name.
 const BundleName = "kafka"
@@ -25,8 +36,13 @@ var (
 )
 
 // NewBundle create bundle instance.
-func NewBundle() *Bundle {
-	return &Bundle{}
+func NewBundle(options ...Option) *Bundle {
+	var b = &Bundle{}
+
+	for _, option := range options {
+		option.apply(b)
+	}
+	return b
 }
 
 // Name implements the gzGlue.Bundle interface.
@@ -37,6 +53,12 @@ func (b *Bundle) Name() string {
 // Build implements the gzGlue.Bundle interface.
 func (b *Bundle) Build(builder di.Builder) error {
 	var tagSubcommand = "kafka.cmd.subcommand"
+	if b.logger == nil {
+		b.logger = logger.NewNopLogger
+	}
+	if b.monitor == nil {
+		b.monitor = monitor.NewNop
+	}
 	return builder.Apply(
 		// commands
 		di.Provide(command.NewKafka, di.Constraint(0, di.WithTags(tagSubcommand)), gzGlue.AsCliCommand()),
@@ -46,9 +68,28 @@ func (b *Bundle) Build(builder di.Builder) error {
 		// example for register default publisher
 		// di.Provide(kafkaapi.NewPublisherWithName(client.DEFAULT, nil), di.As(new(DefaultPublisher))),
 
+		// logger
+		di.Provide(b.logger),
 		// monitor
-		di.Provide(monitor.NewPrometheusMonitor),
+		di.Provide(b.monitor),
 	)
+}
+
+func WithInternalLogger(logger di.Function) Option {
+	return optionFunc(func(b *Bundle) {
+		b.logger = logger
+	})
+}
+
+func WithMonitor(monitor di.Function) Option {
+	return optionFunc(func(b *Bundle) {
+		b.monitor = monitor
+	})
+}
+
+// apply implements Option.
+func (f optionFunc) apply(bundle *Bundle) {
+	f(bundle)
 }
 
 // DependsOn implements the gzGlue.DependsOn interface.

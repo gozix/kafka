@@ -5,18 +5,19 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"gitlab.mobbtech.com/gozix/kafka/monitor"
+	"strconv"
 
 	"github.com/IBM/sarama"
 	"github.com/gozix/di"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
-	"go.uber.org/zap"
 	"golang.org/x/sync/errgroup"
 
 	"gitlab.mobbtech.com/gozix/kafka/internal/client"
 	"gitlab.mobbtech.com/gozix/kafka/internal/modifier"
-	"gitlab.mobbtech.com/gozix/kafka/internal/monitor"
 	"gitlab.mobbtech.com/gozix/kafka/kafkaapi"
+	"gitlab.mobbtech.com/gozix/kafka/logger"
 )
 
 const (
@@ -34,6 +35,9 @@ const (
 
 	// TagMiddleware is a tag to mark kafka middleware.
 	TagMiddleware = "kafka.middleware"
+
+	// ArgMiddlewarePriority is a name of a priority argument.
+	ArgMiddlewarePriority = "priority"
 
 	listenerPrefix = "kafka_listener_"
 )
@@ -68,7 +72,7 @@ func NewKafkaListener(cnt di.Container) *cobra.Command {
 
 			var runE = func(
 				ctx context.Context,
-				logger *zap.Logger,
+				logger logger.InternalLogger,
 				cfg *viper.Viper,
 				singleListeners []kafkaapi.Listener,
 				batchListeners []kafkaapi.BatchListener,
@@ -175,7 +179,7 @@ func NewKafkaListener(cnt di.Container) *cobra.Command {
 				di.Constraint(4, di.Optional(true), modBatchListener.Modifier()),
 				di.Constraint(5, di.Optional(true), modListenerFactory.Modifier()),
 				di.Constraint(6, di.Optional(true), modBatchListenerFactory.Modifier()),
-				di.Constraint(7, di.Optional(true)),
+				di.Constraint(7, di.Optional(true), sortByPriority()),
 			)
 		}
 		cmd = &cobra.Command{
@@ -191,7 +195,7 @@ You can use glob syntax in listener names, for more information see https://gith
 	return cmd
 }
 
-func consumerGroupFactory(handler client.Consume, monitor monitor.Monitor, logger *zap.Logger, name string) createHandler {
+func consumerGroupFactory(handler client.Consume, monitor monitor.Monitor, logger logger.InternalLogger, name string) createHandler {
 	return func(subs kafkaapi.Subscription) sarama.ConsumerGroupHandler {
 		return client.NewConsumerWrapper(
 			handler,
@@ -204,7 +208,7 @@ func consumerGroupFactory(handler client.Consume, monitor monitor.Monitor, logge
 func batchConsumerGroupFactory(
 	handler client.ConsumeBatch,
 	monitor monitor.Monitor,
-	logger *zap.Logger, name string) createHandler {
+	logger logger.InternalLogger, name string) createHandler {
 	return func(subs kafkaapi.Subscription) sarama.ConsumerGroupHandler {
 		return client.NewBatchConsumerWrapper(
 			handler, subs.Size,
@@ -212,4 +216,28 @@ func batchConsumerGroupFactory(
 			logger.Named(listenerPrefix+name),
 		)
 	}
+}
+
+func sortByPriority() di.Modifier {
+	return di.Sort(func(x, y di.Definition) bool {
+		var xp int64
+		for _, tag := range x.Tags() {
+			for _, arg := range tag.Args {
+				if arg.Key == ArgMiddlewarePriority {
+					xp, _ = strconv.ParseInt(arg.Value, 10, 64)
+				}
+			}
+		}
+
+		var yp int64
+		for _, tag := range y.Tags() {
+			for _, arg := range tag.Args {
+				if arg.Key == ArgMiddlewarePriority {
+					yp, _ = strconv.ParseInt(arg.Value, 10, 64)
+				}
+			}
+		}
+
+		return xp > yp
+	})
 }

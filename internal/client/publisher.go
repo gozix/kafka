@@ -2,10 +2,9 @@ package client
 
 import (
 	"errors"
+	"gitlab.mobbtech.com/gozix/kafka/monitor"
 
 	"github.com/IBM/sarama"
-
-	"gitlab.mobbtech.com/gozix/kafka/internal/monitor"
 )
 
 type Publisher interface {

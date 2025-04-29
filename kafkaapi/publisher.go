@@ -3,9 +3,8 @@ package kafkaapi
 import (
 	"github.com/IBM/sarama"
 	"github.com/spf13/viper"
-	"go.uber.org/zap"
-
 	"gitlab.mobbtech.com/gozix/kafka/internal/client"
+	"gitlab.mobbtech.com/gozix/kafka/logger"
 )
 
 type (
@@ -18,8 +17,8 @@ type (
 )
 
 // NewPublisherWithName provide easy way to register publisher
-func NewPublisherWithName(name string, config *Config) func(cfg *viper.Viper, log *zap.Logger) (Publisher, error) {
-	return func(cfg *viper.Viper, log *zap.Logger) (Publisher, error) {
+func NewPublisherWithName(name string, config *Config) func(cfg *viper.Viper, log logger.InternalLogger) (Publisher, error) {
+	return func(cfg *viper.Viper, log logger.InternalLogger) (Publisher, error) {
 		var f, errFactory = client.NewFactory(cfg, log)
 		if errFactory != nil {
 			return nil, errFactory

@@ -5,7 +5,8 @@ import (
 
 	"github.com/IBM/sarama"
 	"github.com/spf13/viper"
-	"go.uber.org/zap"
+
+	"gitlab.mobbtech.com/gozix/kafka/logger"
 )
 
 type Factory interface {
@@ -14,11 +15,11 @@ type Factory interface {
 }
 
 type factory struct {
-	log   *zap.Logger
+	log   logger.InternalLogger
 	nodes map[string][]string
 }
 
-func NewFactory(cfg *viper.Viper, log *zap.Logger) (Factory, error) {
+func NewFactory(cfg *viper.Viper, log logger.InternalLogger) (Factory, error) {
 	var nodes = make(map[string][]string)
 	for name := range cfg.GetStringMap("kafka") {
 		nodes[name] = cfg.GetStringSlice("kafka." + name + ".nodes")

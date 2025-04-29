@@ -1,6 +1,8 @@
 package kafka
 
 import (
+	"strconv"
+	
 	"github.com/gozix/di"
 
 	"gitlab.mobbtech.com/gozix/kafka/internal/command"
@@ -63,11 +65,15 @@ func AsKafkaBatchListenerFactory(name string) di.ProvideOption {
 }
 
 // AsKafkaMiddleware is syntax sugar for the di container.
-func AsKafkaMiddleware() di.ProvideOption {
+func AsKafkaMiddleware(priority int64) di.ProvideOption {
 	return di.ProvideOptions(
 		di.As(new(kafkaapi.Middleware)),
 		di.Tags{{
 			Name: command.TagMiddleware,
+			Args: di.Args{{
+				Key:   command.ArgMiddlewarePriority,
+				Value: strconv.FormatInt(priority, 10),
+			}},
 		}},
 	)
 }

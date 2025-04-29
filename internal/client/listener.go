@@ -6,8 +6,9 @@ import (
 	"sync/atomic"
 
 	"github.com/IBM/sarama"
-	"go.uber.org/zap"
 	"golang.org/x/sync/errgroup"
+
+	"gitlab.mobbtech.com/gozix/kafka/logger"
 )
 
 type Listener interface {
@@ -16,7 +17,7 @@ type Listener interface {
 
 type listener struct {
 	client sarama.Client
-	logger *zap.Logger
+	logger logger.InternalLogger
 
 	isListening atomic.Bool
 }
@@ -51,24 +52,13 @@ func (l *listener) Listen(ctx context.Context, group, topic string, handler sara
 			default:
 			}
 
-			l.logger.Info("Listening... ",
-				zap.String("topic", topic),
-				zap.String("group", group),
-			)
+			l.logger.InfoListen("Listening... ", topic, group)
 			if err := consumerGroup.Consume(ctx, []string{topic}, handler); err != nil {
 				if errors.Is(err, sarama.ErrClosedConsumerGroup) {
-					l.logger.Warn("Consumer closed the connection",
-						zap.Error(err),
-						zap.String("topic", topic),
-						zap.String("group", group),
-					)
+					l.logger.WarnListen("Consumer closed the connection", topic, group, err)
 					return nil
 				}
-				l.logger.Error("Consumer finished listening with error",
-					zap.Error(err),
-					zap.String("topic", topic),
-					zap.String("group", group),
-				)
+				l.logger.ErrorListen("Consumer finished listening with error", topic, group, err)
 			}
 		}
 	})

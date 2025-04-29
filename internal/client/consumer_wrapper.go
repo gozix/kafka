@@ -2,11 +2,11 @@ package client
 
 import (
 	"errors"
-	"gitlab.mobbtech.com/gozix/kafka/internal/monitor"
+	"gitlab.mobbtech.com/gozix/kafka/logger"
+	"gitlab.mobbtech.com/gozix/kafka/monitor"
 	"time"
 
 	"github.com/IBM/sarama"
-	"go.uber.org/zap"
 )
 
 type (
@@ -17,10 +17,10 @@ type (
 type ConsumerWrapper struct {
 	consume Consume
 	monitor monitor.Monitor
-	logger  *zap.Logger
+	logger  logger.InternalLogger
 }
 
-func NewConsumerWrapper(consume Consume, monitor monitor.Monitor, logger *zap.Logger) *ConsumerWrapper {
+func NewConsumerWrapper(consume Consume, monitor monitor.Monitor, logger logger.InternalLogger) *ConsumerWrapper {
 	return &ConsumerWrapper{consume: consume, logger: logger, monitor: monitor}
 }
 
@@ -36,11 +36,7 @@ func (s *ConsumerWrapper) ConsumeClaim(session sarama.ConsumerGroupSession, clai
 			}
 			var start = time.Now()
 			if err := s.consume(m); err != nil {
-				s.logger.Error("Kafka consumer returns error",
-					zap.Error(err),
-					zap.String("topic", m.Topic),
-					zap.Int32("partition", m.Partition),
-				)
+				s.logger.ErrorConsume("Kafka consumer returns error", m.Topic, m.Partition, err)
 				if !errors.Is(err, ErrMessageRejected) {
 					time.Sleep(100 * time.Millisecond)
 					s.monitor.TopicMessagesConsumedTotal(m.Topic, 1, monitor.StatusFailed)
@@ -62,11 +58,11 @@ func (s *ConsumerWrapper) ConsumeClaim(session sarama.ConsumerGroupSession, clai
 type BatchConsumerWrapper struct {
 	consume ConsumeBatch
 	monitor monitor.Monitor
-	logger  *zap.Logger
+	logger  logger.InternalLogger
 	size    int
 }
 
-func NewBatchConsumerWrapper(consume ConsumeBatch, size int, monitor monitor.Monitor, logger *zap.Logger) *BatchConsumerWrapper {
+func NewBatchConsumerWrapper(consume ConsumeBatch, size int, monitor monitor.Monitor, logger logger.InternalLogger) *BatchConsumerWrapper {
 	return &BatchConsumerWrapper{consume: consume, size: size, logger: logger, monitor: monitor}
 }
 
@@ -89,9 +85,7 @@ func (s *BatchConsumerWrapper) ConsumeClaim(session sarama.ConsumerGroupSession,
 				}
 			} else {
 				batch = append(batch, message)
-				s.logger.Debug("Add item to batch",
-					zap.Int32("gen", session.GenerationID()),
-				)
+				s.logger.DebugAddConsume("Add item to batch", session.GenerationID())
 				if len(batch) < s.size {
 					continue
 				}
@@ -99,10 +93,7 @@ func (s *BatchConsumerWrapper) ConsumeClaim(session sarama.ConsumerGroupSession,
 
 		case <-timer.C:
 			timer.Reset(delay)
-			s.logger.Debug("Flushing batch by timeout",
-				zap.Int("size", len(batch)),
-				zap.Int32("gen", session.GenerationID()),
-			)
+			s.logger.DebugFlushConsume("Flushing batch by timeout", len(batch), session.GenerationID())
 
 		case <-session.Context().Done():
 			return nil
@@ -117,12 +108,7 @@ func (s *BatchConsumerWrapper) ConsumeClaim(session sarama.ConsumerGroupSession,
 			message = batch[len(batch)-1]
 		)
 		if err := s.consume(batch); err != nil {
-			s.logger.Error("Kafka consumer returns error",
-				zap.Error(err),
-				zap.String("topic", message.Topic),
-				zap.Int32("partition", message.Partition),
-				zap.Int("size", len(batch)),
-			)
+			s.logger.ErrorBatchConsume("Kafka consumer returns error", message.Topic, message.Partition, len(batch), err)
 			if !errors.Is(err, ErrMessageRejected) {
 				time.Sleep(100 * time.Millisecond)
 				s.monitor.TopicMessagesConsumedTotal(message.Topic, len(batch), monitor.StatusFailed)
