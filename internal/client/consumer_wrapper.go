@@ -117,7 +117,7 @@ func (s *BatchConsumerWrapper) ConsumeClaim(session sarama.ConsumerGroupSession,
 
 		session.MarkOffset(message.Topic, message.Partition, message.Offset+1, "")
 		s.monitor.TopicMessagesConsumedTotal(message.Topic, len(batch), monitor.StatusSuccess)
-		s.monitor.HandlingConsumingMessageSeconds(message.Topic, time.Since(start).Seconds(), "")
+		s.monitor.HandlingConsumingMessageSeconds(message.Topic, time.Since(start).Seconds(), monitor.StatusSuccess)
 
 		batch = batch[:0]
 	}
