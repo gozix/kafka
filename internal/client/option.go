@@ -1,6 +1,10 @@
 package client
 
-import "github.com/IBM/sarama"
+import (
+	"github.com/IBM/sarama"
+
+	"gitlab.mobbtech.com/gozix/kafka/monitor"
+)
 
 const (
 	DEFAULT = "default"
@@ -18,6 +22,7 @@ type (
 	clientOptions struct {
 		config      *sarama.Config
 		connectName string
+		monitor     monitor.Monitor
 	}
 )
 
@@ -44,6 +49,13 @@ func WithConnectName(name string) Option {
 func WithConfig(config *sarama.Config) Option {
 	return optionFunc(func(o *clientOptions) {
 		o.config = config
+	})
+}
+
+// WithMonitor option.
+func WithMonitor(monitor monitor.Monitor) Option {
+	return optionFunc(func(o *clientOptions) {
+		o.monitor = monitor
 	})
 }
 

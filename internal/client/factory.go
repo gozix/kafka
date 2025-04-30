@@ -75,5 +75,6 @@ func (f *factory) NewPublisher(options ...Option) (_ Publisher, err error) {
 
 	return &publisher{
 		producer: producer,
+		monitor:  opt.monitor,
 	}, nil
 }

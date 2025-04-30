@@ -5,6 +5,7 @@ import (
 	"github.com/spf13/viper"
 	"gitlab.mobbtech.com/gozix/kafka/internal/client"
 	"gitlab.mobbtech.com/gozix/kafka/logger"
+	"gitlab.mobbtech.com/gozix/kafka/monitor"
 )
 
 type (
@@ -17,8 +18,8 @@ type (
 )
 
 // NewPublisherWithName provide easy way to register publisher
-func NewPublisherWithName(name string, config *Config) func(cfg *viper.Viper, log logger.InternalLogger) (Publisher, error) {
-	return func(cfg *viper.Viper, log logger.InternalLogger) (Publisher, error) {
+func NewPublisherWithName(name string, config *Config) func(cfg *viper.Viper, log logger.InternalLogger, monitor monitor.Monitor) (Publisher, error) {
+	return func(cfg *viper.Viper, log logger.InternalLogger, monitor monitor.Monitor) (Publisher, error) {
 		var f, errFactory = client.NewFactory(cfg, log)
 		if errFactory != nil {
 			return nil, errFactory
@@ -27,6 +28,9 @@ func NewPublisherWithName(name string, config *Config) func(cfg *viper.Viper, lo
 		opts = append(opts, client.WithConnectName(name))
 		if config != nil {
 			opts = append(opts, client.WithConfig(*config))
+		}
+		if monitor != nil {
+			opts = append(opts, client.WithMonitor(monitor))
 		}
 		var p, err = f.NewPublisher(opts...)
 		if err != nil {
