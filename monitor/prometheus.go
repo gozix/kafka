@@ -49,5 +49,5 @@ func (p *prometheusMonitor) HandlingConsumingMessageSeconds(name string, duratio
 }
 
 func (p *prometheusMonitor) TopicMessagesConsumedTotal(topic string, count int, status Status) {
-	p.topicMessagesProducedTotal.WithLabelValues(p.connection, topic, string(status)).Add(float64(count))
+	p.topicMessagesConsumedTotal.WithLabelValues(p.connection, topic, string(status)).Add(float64(count))
 }
