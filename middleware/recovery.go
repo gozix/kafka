@@ -6,8 +6,8 @@ import (
 
 	"github.com/IBM/sarama"
 
-	"gitlab.mobbtech.com/gozix/kafka/internal/client"
-	"gitlab.mobbtech.com/gozix/kafka/kafkaapi"
+	"github.com/gozix/kafka/internal/client"
+	"github.com/gozix/kafka/kafkaapi"
 )
 
 func NewRecovery() *Recovery {

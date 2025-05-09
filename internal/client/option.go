@@ -3,7 +3,7 @@ package client
 import (
 	"github.com/IBM/sarama"
 
-	"gitlab.mobbtech.com/gozix/kafka/monitor"
+	"github.com/gozix/kafka/monitor"
 )
 
 const (

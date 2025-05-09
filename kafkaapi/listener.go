@@ -5,7 +5,7 @@ import (
 
 	"github.com/IBM/sarama"
 
-	"gitlab.mobbtech.com/gozix/kafka/internal/client"
+	"github.com/gozix/kafka/internal/client"
 )
 
 var (

@@ -2,7 +2,7 @@ package client
 
 import (
 	"errors"
-	"gitlab.mobbtech.com/gozix/kafka/monitor"
+	"github.com/gozix/kafka/monitor"
 
 	"github.com/IBM/sarama"
 )

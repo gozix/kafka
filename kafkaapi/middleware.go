@@ -1,6 +1,6 @@
 package kafkaapi
 
-import "gitlab.mobbtech.com/gozix/kafka/internal/client"
+import "github.com/gozix/kafka/internal/client"
 
 type (
 	MiddlewareFunc      func(next client.Consume) client.Consume

@@ -8,7 +8,7 @@ import (
 	"github.com/IBM/sarama"
 	"golang.org/x/sync/errgroup"
 
-	"gitlab.mobbtech.com/gozix/kafka/logger"
+	"github.com/gozix/kafka/logger"
 )
 
 type Listener interface {

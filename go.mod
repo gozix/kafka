@@ -1,4 +1,4 @@
-module gitlab.mobbtech.com/gozix/kafka
+module github.com/gozix/kafka
 
 go 1.24.1
 

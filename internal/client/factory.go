@@ -6,7 +6,7 @@ import (
 	"github.com/IBM/sarama"
 	"github.com/spf13/viper"
 
-	"gitlab.mobbtech.com/gozix/kafka/logger"
+	"github.com/gozix/kafka/logger"
 )
 
 type Factory interface {

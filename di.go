@@ -2,12 +2,12 @@ package kafka
 
 import (
 	"strconv"
-	
+
 	"github.com/gozix/di"
 
-	"gitlab.mobbtech.com/gozix/kafka/internal/command"
-	"gitlab.mobbtech.com/gozix/kafka/internal/modifier"
-	"gitlab.mobbtech.com/gozix/kafka/kafkaapi"
+	"github.com/gozix/kafka/internal/command"
+	"github.com/gozix/kafka/internal/modifier"
+	"github.com/gozix/kafka/kafkaapi"
 )
 
 // AsKafkaListener is syntax sugar for the di container.

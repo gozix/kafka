@@ -2,8 +2,8 @@ package client
 
 import (
 	"errors"
-	"gitlab.mobbtech.com/gozix/kafka/logger"
-	"gitlab.mobbtech.com/gozix/kafka/monitor"
+	"github.com/gozix/kafka/logger"
+	"github.com/gozix/kafka/monitor"
 	"time"
 
 	"github.com/IBM/sarama"

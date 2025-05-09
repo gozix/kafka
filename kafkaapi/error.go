@@ -1,7 +1,7 @@
 package kafkaapi
 
 import (
-	"gitlab.mobbtech.com/gozix/kafka/internal/client"
+	"github.com/gozix/kafka/internal/client"
 )
 
 var (

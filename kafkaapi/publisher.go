@@ -2,10 +2,10 @@ package kafkaapi
 
 import (
 	"github.com/IBM/sarama"
+	"github.com/gozix/kafka/internal/client"
+	"github.com/gozix/kafka/logger"
+	"github.com/gozix/kafka/monitor"
 	"github.com/spf13/viper"
-	"gitlab.mobbtech.com/gozix/kafka/internal/client"
-	"gitlab.mobbtech.com/gozix/kafka/logger"
-	"gitlab.mobbtech.com/gozix/kafka/monitor"
 )
 
 type (

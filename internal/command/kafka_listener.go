@@ -5,7 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"gitlab.mobbtech.com/gozix/kafka/monitor"
+	"github.com/gozix/kafka/monitor"
 	"strconv"
 
 	"github.com/IBM/sarama"
@@ -14,10 +14,10 @@ import (
 	"github.com/spf13/viper"
 	"golang.org/x/sync/errgroup"
 
-	"gitlab.mobbtech.com/gozix/kafka/internal/client"
-	"gitlab.mobbtech.com/gozix/kafka/internal/modifier"
-	"gitlab.mobbtech.com/gozix/kafka/kafkaapi"
-	"gitlab.mobbtech.com/gozix/kafka/logger"
+	"github.com/gozix/kafka/internal/client"
+	"github.com/gozix/kafka/internal/modifier"
+	"github.com/gozix/kafka/kafkaapi"
+	"github.com/gozix/kafka/logger"
 )
 
 const (
