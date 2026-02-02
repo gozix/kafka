@@ -77,3 +77,31 @@ func AsKafkaMiddleware(priority int64) di.ProvideOption {
 		}},
 	)
 }
+
+// AsKafkaListenerDynamic is syntax sugar for the di container.
+func AsKafkaListenerDynamic(name string) di.ProvideOption {
+	return di.ProvideOptions(
+		di.As(new(kafkaapi.ListenerDynamic)),
+		di.Tags{{
+			Name: "kafka.listener_dynamic",
+			Args: di.Args{{
+				Key:   "name",
+				Value: name,
+			}},
+		}},
+	)
+}
+
+// AsKafkaBatchListenerDynamic is syntax sugar for the di container.
+func AsKafkaBatchListenerDynamic(name string) di.ProvideOption {
+	return di.ProvideOptions(
+		di.As(new(kafkaapi.BatchListenerDynamic)),
+		di.Tags{{
+			Name: "kafka.batch_listener_dynamic",
+			Args: di.Args{{
+				Key:   "name",
+				Value: name,
+			}},
+		}},
+	)
+}

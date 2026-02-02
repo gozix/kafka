@@ -65,6 +65,19 @@ type (
 	}
 	ListenerFactory      func() ([]Listener, error)
 	BatchListenerFactory func() ([]BatchListener, error)
+
+	// ListenerDynamic automatically creates single-message handlers based on the topic list.
+	ListenerDynamic interface {
+		ListenerSettings
+		NewListenerForTopic(topic string) Listener
+		TopicListCheck() ([]string, error)
+	}
+	// BatchListenerDynamic automatically creates batch message handlers based on the topic list.
+	BatchListenerDynamic interface {
+		ListenerSettings
+		NewBatchListenerForTopic(topic string) BatchListener
+		TopicListCheck() ([]string, error)
+	}
 )
 
 func (s *Subscription) Normalize() error {

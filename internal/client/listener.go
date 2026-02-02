@@ -13,6 +13,7 @@ import (
 
 type Listener interface {
 	Listen(ctx context.Context, group, topic string, handler sarama.ConsumerGroupHandler) error
+	Lag(topic, group string) (int64, error)
 }
 
 type listener struct {
@@ -64,4 +65,34 @@ func (l *listener) Listen(ctx context.Context, group, topic string, handler sara
 	})
 
 	return wg.Wait()
+}
+
+func (l *listener) Lag(topic, group string) (int64, error) {
+	partitions, err := l.client.Partitions(topic)
+	if err != nil {
+		return -1, err
+	}
+	var lag int64
+	for _, partition := range partitions {
+		latestOffset, err := l.client.GetOffset(topic, partition, sarama.OffsetNewest)
+		if err != nil {
+			continue
+		}
+		coordinator, err := l.client.Coordinator(group)
+		if err != nil {
+			continue
+		}
+		offsetFetchReq := &sarama.OffsetFetchRequest{Version: 1}
+		offsetFetchReq.AddPartition(topic, partition)
+		offsetFetchResp, err := coordinator.FetchOffset(offsetFetchReq)
+		if err != nil {
+			continue
+		}
+		block := offsetFetchResp.GetBlock(topic, partition)
+		if block == nil || block.Offset < 0 {
+			continue
+		}
+		lag += latestOffset - block.Offset
+	}
+	return lag, nil
 }

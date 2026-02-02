@@ -63,6 +63,7 @@ func (b *Bundle) Build(builder di.Builder) error {
 		// commands
 		di.Provide(command.NewKafka, di.Constraint(0, di.WithTags(tagSubcommand)), gzGlue.AsCliCommand()),
 		di.Provide(command.NewKafkaListener, di.Tags{{Name: tagSubcommand}}),
+		di.Provide(command.NewKafkaListenerDynamic, di.Tags{{Name: tagSubcommand}}),
 
 		// publisher
 		// example for register default publisher
