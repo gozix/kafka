@@ -181,7 +181,7 @@ func runDynamicListenerGroup(
 ) {
 	wg.Go(func() error {
 		var (
-			listenersMap = make(map[string]listenerEntry)
+			listenersMapsByIndex = make(map[int]map[string]listenerEntry)
 		)
 		interval := cfg.GetDuration("kafka." + conn + ".listener_dynamic.poll_interval")
 		if interval == 0 {
@@ -194,8 +194,10 @@ func runDynamicListenerGroup(
 		for {
 			select {
 			case <-ctx.Done():
-				for _, entry := range listenersMap {
-					entry.cancel()
+				for _, listenersMap := range listenersMapsByIndex {
+					for _, entry := range listenersMap {
+						entry.cancel()
+					}
 				}
 				return nil
 			case <-init:
@@ -204,7 +206,12 @@ func runDynamicListenerGroup(
 
 			switch ls := listeners.(type) {
 			case []kafkaapi.ListenerDynamic:
-				for _, listenerFactory := range ls {
+				for index, listenerFactory := range ls {
+					listenersMap, ok := listenersMapsByIndex[index]
+					if !ok {
+						listenersMap = make(map[string]listenerEntry)
+						listenersMapsByIndex[index] = listenersMap
+					}
 					syncDynamicListeners(
 						ctx, mu, listenerFactory,
 						listenerFactory.TopicListCheck,
@@ -223,7 +230,12 @@ func runDynamicListenerGroup(
 					)
 				}
 			case []kafkaapi.BatchListenerDynamic:
-				for _, listenerFactory := range ls {
+				for index, listenerFactory := range ls {
+					listenersMap, ok := listenersMapsByIndex[index]
+					if !ok {
+						listenersMap = make(map[string]listenerEntry)
+						listenersMapsByIndex[index] = listenersMap
+					}
 					syncDynamicBatchListeners(
 						ctx, mu, listenerFactory,
 						listenerFactory.TopicListCheck,
