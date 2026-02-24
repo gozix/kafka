@@ -14,6 +14,7 @@ import (
 type Listener interface {
 	Listen(ctx context.Context, group, topic string, handler sarama.ConsumerGroupHandler) error
 	Lag(topic, group string) (int64, error)
+	Close() error
 }
 
 type listener struct {
@@ -21,12 +22,16 @@ type listener struct {
 	logger logger.InternalLogger
 
 	isListening atomic.Bool
+	topic       string
+	group       string
 }
 
 func (l *listener) Listen(ctx context.Context, group, topic string, handler sarama.ConsumerGroupHandler) (err error) {
 	if !l.isListening.CompareAndSwap(false, true) {
 		return errors.New("already listening")
 	}
+	l.topic = topic
+	l.group = group
 	defer l.isListening.Store(false)
 
 	if l.client.Closed() {
@@ -65,6 +70,14 @@ func (l *listener) Listen(ctx context.Context, group, topic string, handler sara
 	})
 
 	return wg.Wait()
+}
+
+func (l *listener) Close() error {
+	if l.client != nil && !l.client.Closed() {
+		l.logger.InfoListen("Closing client connection", l.topic, l.group)
+		return l.client.Close()
+	}
+	return nil
 }
 
 func (l *listener) Lag(topic, group string) (int64, error) {

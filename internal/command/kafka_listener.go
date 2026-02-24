@@ -5,8 +5,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/gozix/kafka/monitor"
 	"strconv"
+
+	"github.com/gozix/kafka/monitor"
 
 	"github.com/IBM/sarama"
 	"github.com/gozix/di"
@@ -117,6 +118,7 @@ func NewKafkaListener(cnt di.Container) *cobra.Command {
 						}
 						var handler = createHandler(subs)
 						wg.Go(func() error {
+							defer func() { _ = wrappedListener.Close() }()
 							return wrappedListener.Listen(ctx, subs.Group, subs.Topic, handler)
 						})
 					}

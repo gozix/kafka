@@ -28,6 +28,7 @@ const (
 
 type listenerEntry struct {
 	cancel       context.CancelFunc
+	done         <-chan struct{} // closed when Listen goroutine exits
 	listener     client.Listener
 	subscription kafkaapi.Subscription
 }
@@ -35,6 +36,7 @@ type listenerEntry struct {
 func syncDynamicListeners(
 	ctx context.Context,
 	mu *sync.Mutex,
+	log logger.InternalLogger,
 	listenerFactory kafkaapi.ListenerDynamic,
 	getTopics func() ([]string, error),
 	listenersMap map[string]listenerEntry,
@@ -46,10 +48,12 @@ func syncDynamicListeners(
 		return
 	}
 	mu.Lock()
+
 	existing := make(map[string]struct{}, len(listenersMap))
 	for topic := range listenersMap {
 		existing[topic] = struct{}{}
 	}
+
 	for _, topic := range topics {
 		if _, ok := listenersMap[topic]; !ok {
 			childCtx, cancel := context.WithCancel(ctx)
@@ -63,35 +67,47 @@ func syncDynamicListeners(
 				continue
 			}
 			handler := createHandler(apiListener, sub)
+			done := make(chan struct{})
 			go func(wrappedListener client.Listener, childCtx context.Context, group, topic string, handler sarama.ConsumerGroupHandler) {
-				err := wrappedListener.Listen(childCtx, group, topic, handler)
-				if err != nil {
-					// Логируем ошибку, но не останавливаем других
-					fmt.Printf("[dynamic-listener] Listen error for topic %s: %v\n", topic, err)
+				defer close(done)
+				if err := wrappedListener.Listen(childCtx, group, topic, handler); err != nil {
+					log.ErrorListen("dynamic listener error", topic, group, err)
 				}
 			}(wrappedListener, childCtx, sub.Group, sub.Topic, handler)
 			listenersMap[topic] = listenerEntry{
 				cancel:       cancel,
+				done:         done,
 				listener:     wrappedListener,
 				subscription: sub,
 			}
 		}
 		delete(existing, topic)
 	}
+
+	// collect entries to stop (lag == 0) while still under lock
+	var toStop []listenerEntry
 	for topic := range existing {
 		entry := listenersMap[topic]
 		lag, _ := entry.listener.Lag(topic, entry.subscription.Group)
 		if lag == 0 {
 			entry.cancel()
 			delete(listenersMap, topic)
+			toStop = append(toStop, entry)
 		}
 	}
 	mu.Unlock()
+
+	// wait and close outside the lock to avoid blocking the mutex
+	for _, entry := range toStop {
+		<-entry.done
+		_ = entry.listener.Close()
+	}
 }
 
 func syncDynamicBatchListeners(
 	ctx context.Context,
 	mu *sync.Mutex,
+	log logger.InternalLogger,
 	listenerFactory kafkaapi.BatchListenerDynamic,
 	getTopics func() ([]string, error),
 	listenersMap map[string]listenerEntry,
@@ -103,10 +119,12 @@ func syncDynamicBatchListeners(
 		return
 	}
 	mu.Lock()
+
 	existing := make(map[string]struct{}, len(listenersMap))
 	for topic := range listenersMap {
 		existing[topic] = struct{}{}
 	}
+
 	for _, topic := range topics {
 		if _, ok := listenersMap[topic]; !ok {
 			childCtx, cancel := context.WithCancel(ctx)
@@ -120,30 +138,41 @@ func syncDynamicBatchListeners(
 				continue
 			}
 			handler := createHandler(apiListener, sub)
+			done := make(chan struct{})
 			go func(wrappedListener client.Listener, childCtx context.Context, group, topic string, handler sarama.ConsumerGroupHandler) {
-				err := wrappedListener.Listen(childCtx, group, topic, handler)
-				if err != nil {
-					// Логируем ошибку, но не останавливаем других
-					fmt.Printf("[dynamic-listener] Listen error for topic %s: %v\n", topic, err)
+				defer close(done)
+				if err := wrappedListener.Listen(childCtx, group, topic, handler); err != nil {
+					log.ErrorListen("dynamic batch listener error", topic, group, err)
 				}
 			}(wrappedListener, childCtx, sub.Group, sub.Topic, handler)
 			listenersMap[topic] = listenerEntry{
 				cancel:       cancel,
+				done:         done,
 				listener:     wrappedListener,
 				subscription: sub,
 			}
 		}
 		delete(existing, topic)
 	}
+
+	// collect entries to stop (lag == 0) while still under lock
+	var toStop []listenerEntry
 	for topic := range existing {
 		entry := listenersMap[topic]
 		lag, _ := entry.listener.Lag(topic, entry.subscription.Group)
 		if lag == 0 {
 			entry.cancel()
 			delete(listenersMap, topic)
+			toStop = append(toStop, entry)
 		}
 	}
 	mu.Unlock()
+
+	// wait and close outside the lock to avoid blocking the mutex
+	for _, entry := range toStop {
+		<-entry.done
+		_ = entry.listener.Close()
+	}
 }
 
 // groupListenersByConnection groups ListenerDynamic by connection name.
@@ -173,33 +202,45 @@ func runDynamicListenerGroup(
 	wg *errgroup.Group,
 	cfg *viper.Viper,
 	factory client.Factory,
+	log logger.InternalLogger,
 	conn string,
 	listeners any,
 	middlewares kafkaapi.Middlewares,
 	monitor monitor.Monitor,
-	logger logger.InternalLogger,
 ) {
 	wg.Go(func() error {
-		var (
-			listenersMapsByIndex = make(map[int]map[string]listenerEntry)
-		)
+		listenersMapsByIndex := make(map[int]map[string]listenerEntry)
+
 		interval := cfg.GetDuration("kafka." + conn + ".listener_dynamic.poll_interval")
 		if interval == 0 {
 			interval = 10 * time.Second
 		}
 		ticker := time.NewTicker(interval)
+		defer ticker.Stop()
+
 		init := make(chan struct{}, 1)
 		init <- struct{}{}
-		defer ticker.Stop()
+
 		for {
 			select {
 			case <-ctx.Done():
+				// cancel all listeners and wait for them to finish
+				mu.Lock()
 				for _, listenersMap := range listenersMapsByIndex {
 					for _, entry := range listenersMap {
 						entry.cancel()
 					}
 				}
+				mu.Unlock()
+
+				for _, listenersMap := range listenersMapsByIndex {
+					for _, entry := range listenersMap {
+						<-entry.done
+						_ = entry.listener.Close()
+					}
+				}
 				return nil
+
 			case <-init:
 			case <-ticker.C:
 			}
@@ -213,7 +254,7 @@ func runDynamicListenerGroup(
 						listenersMapsByIndex[index] = listenersMap
 					}
 					syncDynamicListeners(
-						ctx, mu, listenerFactory,
+						ctx, mu, log, listenerFactory,
 						listenerFactory.TopicListCheck,
 						listenersMap,
 						func(sub kafkaapi.Subscription) (client.Listener, error) {
@@ -225,7 +266,7 @@ func runDynamicListenerGroup(
 						func(listener kafkaapi.Listener, sub kafkaapi.Subscription) sarama.ConsumerGroupHandler {
 							return consumerGroupFactory(
 								middlewares.WrapSingle(listener.Handle),
-								monitor, logger, sub.Topic)(sub)
+								monitor, log, sub.Topic)(sub)
 						},
 					)
 				}
@@ -237,7 +278,7 @@ func runDynamicListenerGroup(
 						listenersMapsByIndex[index] = listenersMap
 					}
 					syncDynamicBatchListeners(
-						ctx, mu, listenerFactory,
+						ctx, mu, log, listenerFactory,
 						listenerFactory.TopicListCheck,
 						listenersMap,
 						func(sub kafkaapi.Subscription) (client.Listener, error) {
@@ -249,7 +290,7 @@ func runDynamicListenerGroup(
 						func(listener kafkaapi.BatchListener, sub kafkaapi.Subscription) sarama.ConsumerGroupHandler {
 							return batchConsumerGroupFactory(
 								middlewares.WrapBatch(listener.Handle),
-								monitor, logger, sub.Topic)(sub)
+								monitor, log, sub.Topic)(sub)
 						},
 					)
 				}
@@ -275,7 +316,7 @@ func NewKafkaListenerDynamic(cnt di.Container) *cobra.Command {
 
 			return cnt.Call(func(
 				ctx context.Context,
-				logger logger.InternalLogger,
+				log logger.InternalLogger,
 				cfg *viper.Viper,
 				middlewares kafkaapi.Middlewares,
 				monitor monitor.Monitor,
@@ -287,22 +328,19 @@ func NewKafkaListenerDynamic(cnt di.Container) *cobra.Command {
 					wg, ctx2 = errgroup.WithContext(ctx)
 				)
 
-				// Create factory locally for each command run
-				factory, err := client.NewFactory(cfg, logger)
+				factory, err := client.NewFactory(cfg, log)
 				if err != nil {
 					return err
 				}
 
-				// Group listeners by connection
 				byConn := groupListenersByConnection(dynamicListeners)
 				byBatchConn := groupBatchListenersByConnection(dynamicBatchListeners)
 
-				// For each connection, start a separate ticker and sync via helper function
 				for conn, listeners := range byConn {
-					runDynamicListenerGroup(ctx2, &mu, wg, cfg, factory, conn, listeners, middlewares, monitor, logger)
+					runDynamicListenerGroup(ctx2, &mu, wg, cfg, factory, log, conn, listeners, middlewares, monitor)
 				}
 				for conn, listeners := range byBatchConn {
-					runDynamicListenerGroup(ctx2, &mu, wg, cfg, factory, conn, listeners, middlewares, monitor, logger)
+					runDynamicListenerGroup(ctx2, &mu, wg, cfg, factory, log, conn, listeners, middlewares, monitor)
 				}
 
 				return wg.Wait()
