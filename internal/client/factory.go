@@ -15,33 +15,49 @@ type Factory interface {
 }
 
 type factory struct {
-	log   logger.InternalLogger
-	nodes map[string][]string
+	log     logger.InternalLogger
+	nodes   map[string][]string
+	configs map[string]*sarama.Config
 }
 
 func NewFactory(cfg *viper.Viper, log logger.InternalLogger) (Factory, error) {
 	var nodes = make(map[string][]string)
+	var configs = make(map[string]*sarama.Config)
+
 	for name := range cfg.GetStringMap("kafka") {
 		nodes[name] = cfg.GetStringSlice("kafka." + name + ".nodes")
+
+		baseCfg, err := buildBaseConfigFromViper(cfg, name)
+		if err != nil {
+			return nil, err
+		}
+		configs[name] = baseCfg
 	}
 
 	return &factory{
-		log:   log,
-		nodes: nodes,
+		log:     log,
+		nodes:   nodes,
+		configs: configs,
 	}, nil
 }
 
 func (f *factory) NewListener(options ...Option) (_ Listener, err error) {
 	var opt = newClientOptions(options...)
 
-	var config = opt.config
-	if config == nil {
-		config = ListenerDefaultConfig()
-	}
-
 	var nodes, ok = f.nodes[opt.connectName]
 	if !ok {
 		return nil, errors.New("undefined connection's name")
+	}
+
+	// default listener config
+	config := ListenerDefaultConfig()
+	// merge connection-level config from file
+	if base := f.configs[opt.connectName]; base != nil {
+		mergeSaramaConfig(config, base)
+	}
+	// merge explicit overrides (highest priority)
+	if opt.config != nil {
+		mergeSaramaConfig(config, opt.config)
 	}
 
 	var client sarama.Client
@@ -58,14 +74,20 @@ func (f *factory) NewListener(options ...Option) (_ Listener, err error) {
 func (f *factory) NewPublisher(options ...Option) (_ Publisher, err error) {
 	var opt = newClientOptions(options...)
 
-	var config = opt.config
-	if config == nil {
-		config = PublisherDefaultConfig()
-	}
-
 	var nodes, ok = f.nodes[opt.connectName]
 	if !ok {
 		return nil, errors.New("undefined connection's name")
+	}
+
+	// default publisher config
+	config := PublisherDefaultConfig()
+	// merge connection-level config from file
+	if base := f.configs[opt.connectName]; base != nil {
+		mergeSaramaConfig(config, base)
+	}
+	// merge explicit overrides (highest priority)
+	if opt.config != nil {
+		mergeSaramaConfig(config, opt.config)
 	}
 
 	var producer sarama.SyncProducer
